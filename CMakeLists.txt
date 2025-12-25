@@ -6,7 +6,30 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(pinocchio REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
+
+add_executable(panda_ik_node src/panda_ik.cpp)
+
+ament_target_dependencies(
+  panda_ik_node
+  rclcpp
+  std_msgs
+  ament_index_cpp
+)
+
+target_link_libraries(
+  panda_ik_node
+  pinocchio::pinocchio
+)
+
+install(TARGETS panda_ik_node
+  DESTINATION lib/${PROJECT_NAME}
+)
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)
