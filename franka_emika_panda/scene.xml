@@ -1,0 +1,94 @@
+<mujoco model="panda_scene">
+
+  <!-- Load the Panda arm (already includes wrist camera) -->
+  <include file="panda_with_camera.xml"/>
+
+
+  <statistic center="0.3 0 0.4" extent="1"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <!-- Environment textures and materials -->
+    <texture type="skybox" builtin="gradient"
+             rgb1="0.3 0.5 0.7" rgb2="0 0 0"
+             width="512" height="3072"/>
+    <texture type="2d" name="groundplane"
+             builtin="checker" mark="edge"
+             rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+             markrgb="0.8 0.8 0.8"
+             width="300" height="300"/>
+    <material name="groundplane" texture="groundplane"
+              texuniform="true" texrepeat="5 5" reflectance="0.2"/>
+  </asset>
+
+  <worldbody>
+
+    <!-- === Lighting and floor === -->
+    <light pos="0 0 2" dir="0 0 -1" directional="true"/>
+    <geom name="ground" type="plane" size="0 0 0.05" material="groundplane"/>
+
+    <!-- === Table beside the robot === -->
+    <body name="table" pos="0.6 0 0.38">
+      <geom name="table_top" type="box" size="0.4 0.4 0.02"
+            rgba="0.85 0.85 0.85 1" contype="1" conaffinity="1"/>
+
+      <!-- 4 legs -->
+      <body name="leg_fl" pos=" 0.35  0.35 -0.25"><geom type="cylinder" size="0.02 0.25" rgba="0.6 0.6 0.6 1"/></body>
+      <body name="leg_fr" pos=" 0.35 -0.35 -0.25"><geom type="cylinder" size="0.02 0.25" rgba="0.6 0.6 0.6 1"/></body>
+      <body name="leg_bl" pos="-0.35  0.35 -0.25"><geom type="cylinder" size="0.02 0.25" rgba="0.6 0.6 0.6 1"/></body>
+      <body name="leg_br" pos="-0.35 -0.35 -0.25"><geom type="cylinder" size="0.02 0.25" rgba="0.6 0.6 0.6 1"/></body>
+
+      <!-- Colored cubes -->
+      <body name="cube_red"    pos="0.30  0.18 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.9 0.1 0.1 1"/></body>
+      <body name="cube_green"  pos="0.25  0.22 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.1 0.9 0.1 1"/></body>
+      <body name="cube_blue"   pos="0.20  0.18 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.1 0.1 0.9 1"/></body>
+      <body name="cube_yellow" pos="0.15  0.22 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.9 0.9 0.1 1"/></body>
+      <body name="cube_purple" pos="0.10  0.18 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.6 0.2 0.8 1"/></body>
+
+    </body>
+
+    <!-- === Over-table camera (inline geometry) === -->
+    <body name="table_d435i" pos="0.50 0.55 0.60" quat="0.7071 0.7071 0 0" childclass="d435i">
+      <inertial mass="0.072" pos="0 0 0" diaginertia="1e-5 1e-5 1e-5"/>
+      <geom mesh="d435i_0" material="IR_Lens" class="d435i_visual"/>
+      <geom mesh="d435i_1" material="IR_Emitter_Lens" class="d435i_visual"/>
+      <geom mesh="d435i_2" material="IR_Rim" class="d435i_visual"/>
+      <geom mesh="d435i_3" material="IR_Lens" class="d435i_visual"/>
+      <geom mesh="d435i_4" material="Cameras_Gray" class="d435i_visual"/>
+      <geom mesh="d435i_5" material="Black_Acrylic" class="d435i_visual"/>
+      <geom mesh="d435i_6" material="Black_Acrylic" class="d435i_visual"/>
+      <geom mesh="d435i_7" material="RGB_Pupil" class="d435i_visual"/>
+      <geom mesh="d435i_8" material="Metal_Casing" class="d435i_visual"/>
+
+      <camera name="table_rgb"   pos="0.03 0.0 0.02" quat="0 0 1 0"
+               fovy="65" resolution="640 480" mode="fixed"/>
+      <camera name="table_depth" pos="0.03 0.0 0.02" quat="0 0 1 0"
+               fovy="65" resolution="640 480" mode="fixed"/>
+    </body>
+
+    <!-- === Side-mounted camera (inline geometry) === -->
+    <body name="side_d435i" pos="0.50 -0.55 0.60" quat="0.7071 -0.7071 0 0" childclass="d435i">
+      <inertial mass="0.072" pos="0 0 0" diaginertia="1e-5 1e-5 1e-5"/>
+      <geom mesh="d435i_0" material="IR_Lens" class="d435i_visual"/>
+      <geom mesh="d435i_1" material="IR_Emitter_Lens" class="d435i_visual"/>
+      <geom mesh="d435i_2" material="IR_Rim" class="d435i_visual"/>
+      <geom mesh="d435i_3" material="IR_Lens" class="d435i_visual"/>
+      <geom mesh="d435i_4" material="Cameras_Gray" class="d435i_visual"/>
+      <geom mesh="d435i_5" material="Black_Acrylic" class="d435i_visual"/>
+      <geom mesh="d435i_6" material="Black_Acrylic" class="d435i_visual"/>
+      <geom mesh="d435i_7" material="RGB_Pupil" class="d435i_visual"/>
+      <geom mesh="d435i_8" material="Metal_Casing" class="d435i_visual"/>
+
+      <camera name="side_rgb"   pos="0.03 0.0 0.02" quat="0 1 0 0"
+               fovy="65" resolution="640 480" mode="fixed"/>
+      <camera name="side_depth" pos="0.03 0.0 0.02" quat="0 1 0 0"
+               fovy="65" resolution="640 480" mode="fixed"/>
+    </body>
+
+  </worldbody>
+</mujoco>

@@ -1,0 +1,13 @@
+<!-- RealSense D435i body only -->
+<body name="realsense_d435i" childclass="d435i">
+  <geom mesh="d435i_0" material="IR_Lens" class="visual"/>
+  <geom mesh="d435i_1" material="IR_Emitter_Lens" class="visual"/>
+  <geom mesh="d435i_2" material="IR_Rim" class="visual"/>
+  <geom mesh="d435i_3" material="IR_Lens" class="visual"/>
+  <geom mesh="d435i_4" material="Cameras_Gray" class="visual"/>
+  <geom mesh="d435i_5" material="Black_Acrylic" class="visual"/>
+  <geom mesh="d435i_6" material="Black_Acrylic" class="visual"/>
+  <geom mesh="d435i_7" material="RGB_Pupil" class="visual"/>
+  <geom mesh="d435i_8" mass="0.072" material="Metal_Casing" class="visual"/>
+  <geom class="collision" type="capsule" mesh="d435i_8"/>
+</body>
