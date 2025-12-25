@@ -44,11 +44,11 @@
       <body name="leg_br" pos="-0.35 -0.35 -0.25"><geom type="cylinder" size="0.02 0.25" rgba="0.6 0.6 0.6 1"/></body>
 
       <!-- Colored cubes -->
-      <body name="cube_red"    pos="0.30  0.18 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.9 0.1 0.1 1"/></body>
-      <body name="cube_green"  pos="0.25  0.22 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.1 0.9 0.1 1"/></body>
-      <body name="cube_blue"   pos="0.20  0.18 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.1 0.1 0.9 1"/></body>
-      <body name="cube_yellow" pos="0.15  0.22 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.9 0.9 0.1 1"/></body>
-      <body name="cube_purple" pos="0.10  0.18 0.03"><geom type="box" size="0.025 0.025 0.025" rgba="0.6 0.2 0.8 1"/></body>
+      <body name="cube_red"    pos="-0.30  0.18 0.035"><geom type="box" size="0.025 0.025 0.025" rgba="0.9 0.1 0.1 1"/></body>
+      <body name="cube_green"  pos="0.25  -0.22 0.035"><geom type="box" size="0.025 0.025 0.025" rgba="0.1 0.9 0.1 1"/></body>
+      <body name="cube_blue"   pos="-0.20  0.18 0.035"><geom type="box" size="0.025 0.025 0.025" rgba="0.1 0.1 0.9 1"/></body>
+      <body name="cube_yellow" pos="-0.15  -0.22 0.035"><geom type="box" size="0.025 0.025 0.025" rgba="0.9 0.9 0.1 1"/></body>
+      <body name="cube_purple" pos="0.10  0.18 0.035"><geom type="box" size="0.025 0.025 0.025" rgba="0.6 0.2 0.8 1"/></body>
 
     </body>
 
