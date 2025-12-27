@@ -1,0 +1,89 @@
+so101_teleop:
+  ros__parameters:
+
+    
+    # Serial port of the SO-101 / SO-100 leader arm
+    leader_port: "/dev/ttyACM0"
+
+    # Absolute path to the SO-101 URDF (used by Pinocchio)
+    leader_urdf: "/home/sid/projects25/src/panda_mujoco/franka_emika_panda/URDF/so101.urdf"
+
+    # End-effector frame name in SO-101 URDF
+    leader_ee_frame: "gripperframe"
+
+    # Keys returned by teleop.get_action()
+    # (order MUST match leader_urdf_joint_names)
+    leader_action_keys:
+      - "shoulder_pan.pos"
+      - "shoulder_lift.pos"
+      - "elbow_flex.pos"
+      - "wrist_flex.pos"
+      - "wrist_roll.pos"
+
+    # URDF joint names corresponding to the above keys
+    leader_urdf_joint_names:
+      - "shoulder_pan"
+      - "shoulder_lift"
+      - "elbow"
+      - "wrist_pitch"
+      - "wrist_roll"
+
+    # Gripper key from SO-101
+    leader_gripper_key: "gripper.pos"
+
+    # Normalized ranges coming from SO-101 (LeRobot)
+    leader_arm_norm_min: -100.0
+    leader_arm_norm_max:  100.0
+
+    leader_grip_norm_min: 0.0
+    leader_grip_norm_max: 100.0
+
+
+    # ============================================================
+    # TELEOP LOOP
+    # ============================================================
+
+    # Teleop update rate
+    rate_hz: 60.0
+
+    # Scale factors for leader → panda mapping
+    translation_scale: 1.0
+    rotation_scale: 1.0
+
+    # Enable / disable orientation control
+    use_rotation: true
+
+
+    # ============================================================
+    # PANDA TARGET (IK input)
+    # ============================================================
+
+    # Topic that your Panda IK node subscribes to
+    panda_target_topic: "/panda/target_pose"
+
+    # Frame of the published PoseStamped
+    panda_target_frame_id: "world"
+
+    # Panda reference pose (used as teleop zero)
+    panda_ref_xyz: [0.55, 0.00, 0.45]
+    panda_ref_rpy: [0.0, 3.141592653589793, 0.0]
+
+
+    # ============================================================
+    # PANDA WORKSPACE LIMITS (safety clamp)
+    # ============================================================
+
+    workspace_min: [-0.2, -0.6, 0.05]
+    workspace_max: [ 0.9,  0.6, 0.9]
+
+
+    # ============================================================
+    # PANDA GRIPPER (ros2_control)
+    # ============================================================
+
+    # Topic of the gripper controller
+    gripper_command_topic: "/gripper_controller/commands"
+
+    # Panda finger joint range (meters)
+    panda_gripper_min: 0.0
+    panda_gripper_max: 0.04

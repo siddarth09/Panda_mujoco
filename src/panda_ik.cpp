@@ -38,7 +38,7 @@ public:
       model_.nq, model_.nv, model_.frames.size());
 
     // End-effector frame
-    const std::string ee_name = "hand";
+    const std::string ee_name = "panda_ee";
     ee_frame_ = model_.getFrameId(ee_name);
     if (ee_frame_ == (pinocchio::FrameIndex)-1) {
       RCLCPP_ERROR(
@@ -80,13 +80,21 @@ private:
   void controlLoop()
   {
     
-    const Eigen::Vector3d target(0.70, 0.18, 0.415);
+    const Eigen::Vector3d target(0.85, -0.22, 0.415);
 
     solveIK_SE3(target);
 
     std_msgs::msg::Float64MultiArray msg;
-    msg.data.assign(q_.data(), q_.data() + q_.size());
+    msg.data.resize(7);
+
+    // Publish ONLY arm joints
+    for (int i = 0; i < 7; ++i)
+    {
+      msg.data[i] = q_[i];
+    }
+
     pub_->publish(msg);
+
   }
 
   void solveIK_SE3(const Eigen::Vector3d & target_pos)

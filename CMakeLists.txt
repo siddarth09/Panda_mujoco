@@ -12,6 +12,12 @@ find_package(sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_index_cpp REQUIRED)
 
+install(PROGRAMS
+  scripts/so101.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+
 
 add_executable(panda_ik_node src/panda_ik.cpp)
 

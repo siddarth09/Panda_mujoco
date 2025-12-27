@@ -11,6 +11,8 @@ controller_manager:
     gripper_controller:
       type: position_controllers/JointGroupPositionController
 
+# panda_q order:
+# [joint1, joint2, joint3, joint4, joint5, joint6, joint7]
 
 arm_controller:
   ros__parameters:
@@ -30,13 +32,11 @@ arm_controller:
       - position
       - velocity
 
-# gripper_controller:
-#   ros__parameters:
-#     joints:
-#       - finger_joint1
-#       - finger_joint2
-
-#     command_interfaces:
-#       - position
-#     state_interfaces:
-#       - position
+gripper_controller:
+  ros__parameters:
+    joints:
+      - finger_joint1
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
