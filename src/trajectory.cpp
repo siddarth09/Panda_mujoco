@@ -40,7 +40,7 @@ std::vector<int> timeScaleToFixedRate(
   if (path.size() < 2) return {};
 
   // Validate dq_max size matches path dimensions
-  if (!path.empty() && dq_max.size() != path[0].size()) {
+  if (dq_max.size() != path[0].size()) {
     return {};  // Return empty vector on dimension mismatch
   }
 
