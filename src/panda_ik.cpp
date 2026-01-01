@@ -115,7 +115,9 @@ void PandaIKNode::controlLoop()
     exec_path_ = densifyPathMaxStep(raw_path, 0.02);
 
     Eigen::VectorXd dq_max(7);
-    dq_max.setConstant(1.2);
+    const double joint_velocity_limit =
+      this->declare_parameter<double>("joint_velocity_limit", 1.2);
+    dq_max.setConstant(joint_velocity_limit);
     exec_repeats_ = timeScaleToFixedRate(exec_path_, dq_max, control_hz_);
 
     exec_idx_ = 0;
