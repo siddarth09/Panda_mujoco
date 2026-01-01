@@ -221,16 +221,16 @@ def teleoperate(cfg: TeleoperateConfig):
             if cfg.display_data and _HAS_RERUN:
                 rr.rerun_shutdown()
         except Exception:
-            pass
+            logging.exception("Error while shutting down rerun; ignoring during teleop shutdown.")
 
         try:
             teleop.disconnect()
         except Exception:
-            pass
+            logging.exception("Error while disconnecting teleop; ignoring during teleop shutdown.")
         try:
             robot.disconnect()
         except Exception:
-            pass
+            logging.exception("Error while disconnecting robot; ignoring during teleop shutdown.")
 
         ros_node.destroy_node()
         rclpy.shutdown()
