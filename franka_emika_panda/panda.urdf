@@ -636,10 +636,17 @@
          <inertia ixx="1e-09" iyy="1e-09" izz="1e-09" ixy="0" ixz="0" iyz="0"/>
       </inertial>
    </link>
-   <joint type="fixed" name="finger_joint1">
+   <joint name="finger_joint1" type="prismatic">
       <parent link="hand"/>
       <child link="finger_joint1_jointbody"/>
+
       <origin xyz="0.0 0.0 0.0584" rpy="0.0 0.0 0.0"/>
+
+      <!-- Sliding direction -->
+      <axis xyz="0 0 1"/>
+
+      <!-- REQUIRED for prismatic joints -->
+      <limit lower="0.0" upper="0.04" effort="10.0" velocity="0.1"/>
    </joint>
    <joint type="fixed" name="finger_joint1_offset">
       <parent link="finger_joint1_jointbody"/>
@@ -678,18 +685,33 @@
          <inertia ixx="1e-09" iyy="1e-09" izz="1e-09" ixy="0" ixz="0" iyz="0"/>
       </inertial>
    </link>
-   <joint type="fixed" name="finger_joint2">
+   <joint name="finger_joint2" type="prismatic">
       <parent link="hand"/>
       <child link="finger_joint2_jointbody"/>
+
       <origin xyz="0.0 0.0 0.0584" rpy="0.0 0.0 3.141592653589793"/>
-   </joint>
+
+      <!-- Same sliding axis -->
+      <axis xyz="0 0 1"/>
+
+      <!-- REQUIRED limits (even for mimic joints) -->
+      <limit lower="0.0" upper="0.04" effort="10.0" velocity="0.1"/>
+
+      <!-- Mimic coupling -->
+      <mimic joint="finger_joint1" multiplier="1.0"/>
+      </joint>
    <joint type="fixed" name="finger_joint2_offset">
       <parent link="finger_joint2_jointbody"/>
       <child link="right_finger"/>
       <origin xyz="-0.0 -0.0 -0.0" rpy="0.0 0.0 0.0"/>
    </joint>
 
-
+   <link name="panda_ee"/>
+   <joint name="hand_to_panda_ee_fixed" type="fixed">
+   <parent link="hand"/>
+   <child link="panda_ee"/>
+   <origin xyz="0 0 0.107" rpy="0 0 0"/>
+   </joint>
 
 <ros2_control name="PandaMujocoSystem" type="system">
   <hardware>
@@ -747,15 +769,14 @@
     <state_interface name="effort"/>
   </joint>
 
-  <!-- <joint name="finger_joint1">
+ <!-- Commanded finger -->
+   <joint name="finger_joint1">
    <command_interface name="position"/>
    <state_interface name="position"/>
    </joint>
 
-   <joint name="finger_joint2">
-   <command_interface name="position"/>
-   <state_interface name="position"/>
-   </joint> -->
+   <!-- Mimic / follower finger -->
+   
   <sensor name="wrist_rgb">
     <param name="frame_name">wrist_rgb_optical_frame</param>
     <param name="info_topic">/wrist_rgb/camera_info</param>

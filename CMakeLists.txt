@@ -11,9 +11,18 @@ find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(ament_index_cpp REQUIRED)
+find_package(ompl REQUIRED)
+find_package(fcl REQUIRED)
 
 
-add_executable(panda_ik_node src/panda_ik.cpp)
+install(PROGRAMS
+  scripts/so101.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+include_directories(include)
+
+add_executable(panda_ik_node src/panda_ik.cpp   src/trajectory.cpp)
 
 ament_target_dependencies(
   panda_ik_node
@@ -25,6 +34,13 @@ ament_target_dependencies(
 target_link_libraries(
   panda_ik_node
   pinocchio::pinocchio
+  fcl
+)
+target_link_libraries(panda_ik_node ompl)
+target_include_directories(panda_ik_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  /usr/include/ompl-1.5
 )
 
 install(TARGETS panda_ik_node
