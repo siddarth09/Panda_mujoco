@@ -16,9 +16,13 @@ class CubeTF : public rclcpp::Node
         void cube_callback(
             const panda_mujoco::msg::CubeDetector::SharedPtr msg);
         
-            
+        void cube_table_to_base(const panda_mujoco::msg::CubeDetector::SharedPtr msg);
         rclcpp::Subscription<panda_mujoco::msg::CubeDetector>::SharedPtr sub_;
         rclcpp::Publisher<panda_mujoco::msg::CubeDetector>::SharedPtr pub_;
+
+        rclcpp::Subscription<panda_mujoco::msg::CubeDetector>::SharedPtr sub_table_;
+        rclcpp::Publisher<panda_mujoco::msg::CubeDetector>::SharedPtr pub_table_;
+
 
         tf2_ros::Buffer tf_buffer_;
         tf2_ros::TransformListener tf_listener_;

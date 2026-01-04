@@ -55,7 +55,7 @@ target_link_libraries(
   pinocchio::pinocchio
   fcl
 )
-target_link_libraries(panda_ik_node ompl)
+target_link_libraries(panda_ik_node ompl ${cpp_typesupport_target})
 target_include_directories(panda_ik_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
