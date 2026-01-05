@@ -5,8 +5,8 @@ so101_teleop:
     # Serial port of the SO-101 / SO-100 leader arm
     leader_port: "/dev/ttyACM0"
 
-    # Absolute path to the SO-101 URDF (used by Pinocchio)
-    leader_urdf: "/home/sid/projects25/src/panda_mujoco/franka_emika_panda/URDF/so101.urdf"
+    # Package-relative path to the SO-101 URDF (used by Pinocchio)
+    leader_urdf: "franka_emika_panda/URDF/so101.urdf"
 
     # End-effector frame name in SO-101 URDF
     leader_ee_frame: "gripperframe"
