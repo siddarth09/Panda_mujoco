@@ -101,7 +101,7 @@ def generate_launch_description():
             executable="static_transform_publisher",
             name="top_rgb_mount_tf",
             arguments=[
-                "-0.02", "0.0", "0.52",   # ← CORRECT RELATIVE OFFSET
+                "-0.02", "0.0", "0.52",   
                 "0", "0", "0", "1",
                 "table_frame",
                 "top_rgb_frame"
