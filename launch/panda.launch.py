@@ -75,6 +75,51 @@ def generate_launch_description():
         output="screen",
     )
 
+    cube_detector = Node(
+        package="panda_mujoco",
+        executable="cube_detector",
+    ) 
+    cube_tf = Node(
+        package="panda_mujoco",
+        executable="cube_tf",
+    )
+
+    static_table_tf = Node(
+            package="tf2_ros",
+            executable="static_transform_publisher",
+            name="table_static_tf",
+            arguments=[
+                "0.6", "0.0", "0.38",
+                "0", "0", "0", "1",
+                "world",
+                "table_frame"
+            ]
+        )
+
+    static_camera_tf = Node(
+            package="tf2_ros",
+            executable="static_transform_publisher",
+            name="top_rgb_mount_tf",
+            arguments=[
+                "-0.02", "0.0", "0.52",   # ← CORRECT RELATIVE OFFSET
+                "0", "0", "0", "1",
+                "table_frame",
+                "top_rgb_frame"
+            ]
+        )
+
+ 
+    camera_optical_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="top_rgb_optical_tf",
+        arguments=[
+            "0", "0", "0",
+            "1", "0", "0", "0",
+            "top_rgb_frame",
+            "top_rgb_optical_frame"
+        ]
+    )
     return LaunchDescription(
         [
             robot_state_publisher,
@@ -82,5 +127,10 @@ def generate_launch_description():
             joint_state_broadcaster_spawner,
             arm_controller_spawner,
             gripper_controller_spawner,
+            static_table_tf,
+            static_camera_tf,
+            camera_optical_tf,
+            cube_detector,
+            cube_tf
         ]
     )
