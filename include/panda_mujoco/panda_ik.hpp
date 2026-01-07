@@ -120,8 +120,8 @@ private:
   double control_hz_{200.0};
 
   // Gripper setpoints (ROS2 control: finger_joint1 position)
-  double gripper_open_{0.04};
-  double gripper_closed_{0.005};
+  double gripper_open_{0.4};
+  double gripper_closed_{0.05};
   PickState pick_state_ = PickState::IDLE;
   std::vector<CubeInfo> cube_buffer_;
   bool picking_{false};

@@ -243,7 +243,7 @@ void PandaIKNode::controlLoop()
 
       RCLCPP_INFO(get_logger(), "Descending to grasp");
       planAndExecute(grasp);
-      closeGripper();
+      
       pick_state_ = PickState::GRASP;
       break;
     }
