@@ -88,10 +88,36 @@ ament_target_dependencies(cube_tf
 target_link_libraries(cube_tf ${cpp_typesupport_target})
 
 
+# Teleop node
+
+add_executable(panda_teleop
+  src/panda_teleop.cpp
+)
+
+ament_target_dependencies(
+  panda_teleop
+  rclcpp
+  std_msgs
+  sensor_msgs
+  ament_index_cpp
+)
+
+target_link_libraries(
+  panda_teleop
+  pinocchio::pinocchio
+)
+
+target_include_directories(panda_teleop PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+
 
 install(TARGETS panda_ik_node
   cube_detector
   cube_tf
+  panda_teleop
   DESTINATION lib/${PROJECT_NAME}
 )
 
