@@ -278,7 +278,7 @@
       name="gripper_actuator"
       joint="finger_joint1"
       kp="500"
-      ctrlrange="0 0.04"/>
+      ctrlrange="0 0.4"/>
   </actuator>
 
   <keyframe>

@@ -35,7 +35,18 @@
 class PandaMotionPlanner;
 
 
-
+enum class PickState {
+  IDLE,
+  OPEN_GRIPPER,
+  HOVER,
+  DESCEND,
+  GRASP,
+  LIFT,
+  PLACE_HOVER,
+  PLACE_DOWN,
+  RELEASE,
+  RETREAT
+};
 
 struct CubeInfo
 {
@@ -59,6 +70,7 @@ private:
 
   // ----- Motion helpers -----
   void planAndExecute(const Eigen::Vector3d& target_pos);
+  void sendHome();
   void solveIK_SE3(const Eigen::Vector3d& target_pos);
 
   // ----- Command publishing -----
@@ -105,12 +117,16 @@ private:
   Eigen::Vector3d grasp_{Eigen::Vector3d::Zero()};
 
   // ----- Control params -----
-  double control_hz_{100.0};
+  double control_hz_{200.0};
 
   // Gripper setpoints (ROS2 control: finger_joint1 position)
-  double gripper_open_{0.04};
-  double gripper_closed_{0.0};
-
+  double gripper_open_{0.4};
+  double gripper_closed_{0.05};
+  PickState pick_state_ = PickState::IDLE;
   std::vector<CubeInfo> cube_buffer_;
   bool picking_{false};
+
+
+  Eigen::VectorXd q_home_;
+  bool sent_home_{false};
 };

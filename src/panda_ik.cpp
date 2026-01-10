@@ -74,9 +74,44 @@ PandaIKNode::PandaIKNode()
   timer_ = create_wall_timer(
     std::chrono::milliseconds(10),
     std::bind(&PandaIKNode::controlLoop, this));
-
+  q_home_.resize(7);
+  q_home_ <<
+    0.0,
+  -0.785,
+    0.0,
+  -2.356,
+    0.0,
+    1.571,
+    0.785;
   RCLCPP_INFO(get_logger(), "Panda IK + Gripper node started");
+
+
+  sendHome();
 }
+
+void PandaIKNode::sendHome()
+{
+  if (!have_js_) {
+    RCLCPP_INFO(this->get_logger(),
+                "[HOME] Waiting for joint states...");
+    return;
+  }
+
+  if (sent_home_)
+    return;
+
+  // Publish arm joints
+  publishArm(q_home_);
+
+  // Publish gripper
+  publishGripper(0.02);  // your desired home finger position
+
+  sent_home_ = true;
+
+  RCLCPP_INFO(this->get_logger(),
+              "[HOME] Home position command sent.");
+}
+
 
 // ------------------ cube callback ------------------
 void PandaIKNode::cubeCallback(
@@ -132,106 +167,161 @@ bool PandaIKNode::selectNextCube(Eigen::Vector3d& out_pos, std::string& color)
   return true;
 }
 
-
-// ------------------ control loop ------------------
 void PandaIKNode::controlLoop()
 {
-  if (!have_cube_ || !have_js_ || picking_)
+  if (!have_cube_ || !have_js_)
     return;
+
+  if (!sent_home_) {
+    sendHome();
+    sleep(3);
+    return;   
+  }
 
   // ---------- CONSTANTS ----------
   constexpr double PLACE_X = 0.10;
   constexpr double PLACE_Y = 0.10;
 
-  // Empirical TF / camera bias
-  constexpr double XY_BIAS_X = 0.06;
-  constexpr double XY_BIAS_Y = -0.05;
+  constexpr double XY_BIAS_X = 0.03;
+  constexpr double XY_BIAS_Y = -0.03;
 
   constexpr double CUBE_HEIGHT      = 0.05;
-  constexpr double CUBE_HALF_HEIGHT = 0.025;
-  constexpr double GRASP_CLEARANCE  = 0.002;
+  constexpr double CUBE_HALF_HEIGHT = 0.030;
 
-  constexpr double TABLE_Z = 0.435;   // derived from observations
+  constexpr double TABLE_Z = 0.435;
+  constexpr double LIFT_DELTA_Z = 0.20;
+  constexpr double HOVER_Z = 0.07;
 
   static int stack_count = 0;
 
-  // ---------- SELECT CUBE ----------
-  Eigen::Vector3d target;
-  std::string color;
+  static Eigen::Vector3d cube_pos;
+  static std::string cube_color;
 
-  if (!selectNextCube(target, color))
-    return;
+  switch (pick_state_)
+  {
+    case PickState::IDLE:
+    {
+      if (!selectNextCube(cube_pos, cube_color))
+        return;
 
-  RCLCPP_INFO(
-    get_logger(),
-    "Selected cube %s at [%.3f %.3f %.3f]",
-    color.c_str(), target.x(), target.y(), target.z());
+      cube_pos.x() += XY_BIAS_X;
+      cube_pos.y() += XY_BIAS_Y;
 
-  picking_ = true;
-  cube_pos_ = target;
+      RCLCPP_INFO(
+        get_logger(),
+        "Selected cube %s at [%.3f %.3f %.3f]",
+        cube_color.c_str(), cube_pos.x(), cube_pos.y(), cube_pos.z());
 
-  // ---------- PICK ----------
-  openGripper();
-  rclcpp::sleep_for(std::chrono::milliseconds(300));
+      picking_ = true;
+      pick_state_ = PickState::OPEN_GRIPPER;
+      break;
+    }
 
-  // 1) Hover above cube
-  Eigen::Vector3d pregrasp =
-      cube_pos_ + Eigen::Vector3d(0, 0, 0.03);
-  RCLCPP_INFO(get_logger(), "Hovering above cube");
-  planAndExecute(pregrasp);
+    case PickState::OPEN_GRIPPER:
+    {
+      RCLCPP_INFO(get_logger(), "Opening gripper");
+      openGripper();
+      pick_state_ = PickState::HOVER;
+      break;
+    }
 
-  // 2) Descend to grasp depth
-  Eigen::Vector3d grasp =
-      cube_pos_
-      - Eigen::Vector3d(0, XY_BIAS_Y, CUBE_HALF_HEIGHT - GRASP_CLEARANCE);
+    case PickState::HOVER:
+    {
+      Eigen::Vector3d hover =
+          cube_pos + Eigen::Vector3d(0, 0, HOVER_Z);
 
-  RCLCPP_INFO(get_logger(), "Descending to grasp");
-  planAndExecute(grasp);
+      RCLCPP_INFO(get_logger(), "Hovering above cube");
+      planAndExecute(hover);
+      pick_state_ = PickState::DESCEND;
+      break;
+    }
 
-  // 3) Close gripper
-  RCLCPP_INFO(get_logger(), "Closing gripper");
-  closeGripper();
-  rclcpp::sleep_for(std::chrono::milliseconds(400));
+    case PickState::DESCEND:
+    {
+      Eigen::Vector3d grasp =
+          cube_pos - Eigen::Vector3d(0, XY_BIAS_Y, CUBE_HALF_HEIGHT);
 
-  // 4) Lift cube
-  Eigen::Vector3d lift =
-      cube_pos_ + Eigen::Vector3d(0, 0, 0.20);
-  RCLCPP_INFO(get_logger(), "Lifting cube");
-  planAndExecute(lift);
+      RCLCPP_INFO(get_logger(), "Descending to grasp");
+      planAndExecute(grasp);
+      
+      pick_state_ = PickState::GRASP;
+      break;
+    }
 
-  // ---------- PLACE ----------
-  Eigen::Vector3d place_hover(
-    PLACE_X + XY_BIAS_X,
-    PLACE_Y + XY_BIAS_Y,
-    TABLE_Z + 0.20 + stack_count * CUBE_HEIGHT);
+    case PickState::GRASP:
+    {
+      RCLCPP_INFO(get_logger(), "Closing gripper");
+      closeGripper();
+      pick_state_ = PickState::LIFT;
+      break;
+    }
 
-  Eigen::Vector3d place_down(
-    PLACE_X + XY_BIAS_X,
-    PLACE_Y + XY_BIAS_Y,
-    TABLE_Z + CUBE_HALF_HEIGHT + stack_count * CUBE_HEIGHT);
+    case PickState::LIFT:
+    {
+      Eigen::Vector3d lift =
+          cube_pos + Eigen::Vector3d(0, 0, LIFT_DELTA_Z);
 
-  // 5) Move above stack
-  RCLCPP_INFO(get_logger(), "Moving to place hover");
-  planAndExecute(place_hover);
+      RCLCPP_INFO(get_logger(), "Lifting cube");
+      planAndExecute(lift);
+      pick_state_ = PickState::PLACE_HOVER;
+      break;
+    }
 
-  // 6) Lower onto stack
-  RCLCPP_INFO(get_logger(), "Placing cube");
-  planAndExecute(place_down);
+    case PickState::PLACE_HOVER:
+    {
+      Eigen::Vector3d place_hover(
+        PLACE_X + XY_BIAS_X,
+        PLACE_Y + XY_BIAS_Y,
+        TABLE_Z + 0.20 + stack_count * CUBE_HEIGHT);
 
-  // 7) Open gripper
-  openGripper();
-  rclcpp::sleep_for(std::chrono::milliseconds(300));
+      RCLCPP_INFO(get_logger(), "Moving to place hover");
+      planAndExecute(place_hover);
+      pick_state_ = PickState::PLACE_DOWN;
+      break;
+    }
 
-  // 8) Retreat upward
-  planAndExecute(place_hover);
+    case PickState::PLACE_DOWN:
+    {
+      Eigen::Vector3d place_down(
+        PLACE_X + XY_BIAS_X,
+        PLACE_Y + XY_BIAS_Y,
+        TABLE_Z + CUBE_HALF_HEIGHT + stack_count * CUBE_HEIGHT);
 
-  stack_count++;
+      RCLCPP_INFO(get_logger(), "Placing cube");
+      planAndExecute(place_down);
+      pick_state_ = PickState::RELEASE;
+      break;
+    }
 
-  RCLCPP_INFO(get_logger(), "Pick & place complete (stack height = %d)", stack_count);
+    case PickState::RELEASE:
+    {
+      RCLCPP_INFO(get_logger(), "Releasing cube");
+      openGripper();
+      pick_state_ = PickState::RETREAT;
+      break;
+    }
 
-  picking_ = false;
+    case PickState::RETREAT:
+    {
+      Eigen::Vector3d retreat(
+        PLACE_X + XY_BIAS_X,
+        PLACE_Y + XY_BIAS_Y,
+        TABLE_Z + 0.20 + stack_count * CUBE_HEIGHT);
+
+      RCLCPP_INFO(get_logger(), "Retreating");
+      planAndExecute(retreat);
+
+      stack_count++;
+      picking_ = false;
+      pick_state_ = PickState::IDLE;
+
+      RCLCPP_INFO(
+        get_logger(),
+        "Pick & place complete (stack=%d)", stack_count);
+      break;
+    }
+  }
 }
-
 
 
 
@@ -315,6 +405,14 @@ void PandaIKNode::publishArm(const Eigen::VectorXd& q7)
   msg.data.assign(q7.data(), q7.data() + 7);
   arm_pub_->publish(msg);
   q_.head(7) = q7;
+  RCLCPP_INFO_THROTTLE(
+    get_logger(),
+    *get_clock(),
+    1000,   // ms
+    "ARM POSITIONS: [%.3f %.3f %.3f %.3f %.3f %.3f %.3f]",
+    q7[0], q7[1], q7[2], q7[3], q7[4], q7[5], q7[6]
+  );
+
 }
 
 void PandaIKNode::publishGripper(double finger_pos)
@@ -326,13 +424,25 @@ void PandaIKNode::publishGripper(double finger_pos)
 
 void PandaIKNode::closeGripper()
 {
-  publishGripper(gripper_closed_);
-}
+  static double cmd = gripper_open_;
+  const double step = 0.001;   // small step
+  const double hold = gripper_closed_;
 
+  if (cmd > hold)
+    cmd -= step;
+
+  publishGripper(cmd);
+}
 
 void PandaIKNode::openGripper()
 {
-  publishGripper(gripper_open_);
+  static double cmd = gripper_closed_;
+  const double step = 0.002;
+
+  if (cmd < gripper_open_)
+    cmd += step;
+
+  publishGripper(cmd);
 }
 
 void PandaIKNode::jointStateCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
