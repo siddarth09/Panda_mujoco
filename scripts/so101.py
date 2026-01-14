@@ -4,10 +4,11 @@ import time
 import math
 from dataclasses import asdict
 from pprint import pformat
-from typing import Optional
+from typing import Optional, Dict, List
 
 import rclpy
 from std_msgs.msg import Float64MultiArray
+from sensor_msgs.msg import JointState
 
 # LeRobot
 from lerobot.configs import parser
@@ -30,54 +31,128 @@ except Exception:
     _HAS_RERUN = False
 
 """
-make sure you have lerobot library installed
-ros2 run panda_mujoco so101.py --robot.type=so101_follower   --robot.port=/dev/ttyACM0   --teleop.type=so101_leader   --teleop.port=/dev/ttyACM1
-
+UR5 teleop bridge (SO101 leader -> UR5 in MuJoCo/ros2_control)
+- Reads SO101 leader angles via LeRobot teleoperator
+- Captures leader0 (zero) at start to avoid UR5 jump
+- Captures UR5 start pose from /joint_states (ur5_0)
+- Publishes UR5 joint commands as: ur5_cmd = ur5_0 + mapped(leader_now - leader0)
+- DOES NOT require SO101 follower observation (avoids "no status packet" crashes)
+Publishes:
+  /arm_controller/commands  (std_msgs/Float64MultiArray)
+Subscribes:
+  /joint_states (sensor_msgs/JointState)
 """
+
+
 # =====================================================================================
-# PANDA MAPPING
+# UR5 joint order (MUST match your controller arm_controller joints list)
 # =====================================================================================
-def extract_panda_joint_vector(robot_action_to_send: dict) -> list[float]:
+UR5_JOINT_NAMES: List[str] = [
+    "shoulder_pan_joint",
+    "shoulder_lift_joint",
+    "elbow_joint",
+    "wrist_1_joint",
+    "wrist_2_joint",
+    "wrist_3_joint",
+]
+
+
+# =====================================================================================
+# JointState reader (captures UR5 start pose)
+# =====================================================================================
+class UR5JointStateReader:
+    def __init__(self, node):
+        self._latest: Optional[JointState] = None
+        self._sub = node.create_subscription(JointState, "/joint_states", self._cb, 10)
+
+    def _cb(self, msg: JointState) -> None:
+        self._latest = msg
+
+    def get_current(self, node, joint_names: List[str], timeout: float = 3.0) -> List[float]:
+        """
+        Spin `node` until we have positions for all `joint_names`.
+        """
+        start = time.time()
+        while rclpy.ok():
+            if self._latest is not None and len(self._latest.name) == len(self._latest.position):
+                name_to_pos = dict(zip(self._latest.name, self._latest.position))
+                if all(j in name_to_pos for j in joint_names):
+                    return [float(name_to_pos[j]) for j in joint_names]
+
+            if (time.time() - start) > timeout:
+                raise RuntimeError(
+                    f"Timed out waiting for joints {joint_names} on /joint_states. "
+                    "Make sure joint_state_broadcaster is active."
+                )
+
+            rclpy.spin_once(node, timeout_sec=0.05)
+
+        raise RuntimeError("ROS shutdown while waiting for /joint_states")
+
+
+# =====================================================================================
+# Leader key extraction (matches your printed LeRobot dict keys)
+# =====================================================================================
+def get_leader_vec_deg(robot_action_to_send: dict) -> Dict[str, float]:
     """
-    Convert SO101 robot_action_to_send dict → Panda 7-DoF joint vector (radians)
-
-    Expected keys in robot_action_to_send (degrees):
-      - shoulder_pan.pos
-      - shoulder_lift.pos
-      - elbow_flex.pos
-      - wrist_flex.pos
-      - wrist_roll.pos
-      - gripper.pos (ignored here)
-
-    Returns:
-      List[float] length 7 (radians)
+    Extract leader DOFs (degrees) from LeRobot robot_action_to_send dict.
+    Keys seen in your logs:
+      shoulder_pan.pos
+      shoulder_lift.pos
+      elbow_flex.pos
+      wrist_flex.pos
+      wrist_roll.pos
+      gripper.pos (ignored)
     """
-
-    def deg2rad(x: float) -> float:
-        return float(x) * math.pi / 180.0
-
-    def get(name: str) -> float:
-        # defensive default to 0
-        v = robot_action_to_send.get(name, 0.0)
+    def f(key: str) -> float:
+        v = robot_action_to_send.get(key, 0.0)
+        
         try:
             return float(v)
         except Exception:
             return 0.0
 
-    q1 = -deg2rad(get("shoulder_pan.pos"))
-    q2 = 0.0
-    q3 = deg2rad(get("shoulder_lift.pos"))
-    q4 = deg2rad(get("elbow_flex.pos"))
-    q5 = deg2rad(get("wrist_flex.pos"))
-    q6 = deg2rad(get("wrist_roll.pos"))
-    q7 = 0.0 #deg2rad(get("wrist_roll.pos"))
+    return {
+        "shoulder_pan":  f("shoulder_pan.pos"),
+        "shoulder_lift": f("shoulder_lift.pos"),
+        "elbow":         f("elbow_flex.pos"),
+        "wrist_flex":    f("wrist_flex.pos"),
+        "wrist_roll":    f("wrist_roll.pos"),
+    }
 
-    panda_q = [q1, q2, q3, q4, q5, q6, q7]
-    return panda_q
+
+def deg2rad(d: float) -> float:
+    return float(d) * math.pi / 180.0
 
 
 # =====================================================================================
-# TELEOP LOOP
+# Map leader deltas -> UR5 deltas (5DOF -> 6DOF; hold wrist_3)
+# =====================================================================================
+def compute_ur5_cmd_from_deltas(
+    leader_now_deg: Dict[str, float],
+    leader0_deg: Dict[str, float],
+    ur5_0: List[float],
+) -> List[float]:
+    UR5_ELBOW_NEUTRAL = -1.5708
+
+    d_pan   = deg2rad(leader_now_deg["shoulder_pan"]  - leader0_deg["shoulder_pan"])
+    d_lift  = deg2rad(leader_now_deg["shoulder_lift"] - leader0_deg["shoulder_lift"])
+    d_elbow = deg2rad(leader_now_deg["elbow"]         - leader0_deg["elbow"])
+    d_wflex = deg2rad(leader_now_deg["wrist_flex"]    - leader0_deg["wrist_flex"])
+    d_wroll = deg2rad(leader_now_deg["wrist_roll"]    - leader0_deg["wrist_roll"])
+
+    # Signs may need tuning. This version matches your earlier mapping assumption.
+    return [
+        ur5_0[0] + (-d_pan),                  # shoulder_pan_joint
+        ur5_0[1] + (-d_lift),                 # shoulder_lift_joint
+        -ur5_0[3] + (d_elbow),       # elbow_joint
+        -1.5708,                              # wrist_1_joint (locked)
+        -1.5708,                             # wrist_2_joint (free but stable)
+        ur5_0[5] + ( d_wroll),                # wrist_3_joint
+    ]
+
+# =====================================================================================
+# TELEOP LOOP (UR5-only; follower optional and non-blocking)
 # =====================================================================================
 def teleop_loop(
     teleop: Teleoperator,
@@ -88,16 +163,27 @@ def teleop_loop(
     robot_observation_processor: RobotProcessorPipeline,
     display_data: bool = False,
     duration: Optional[float] = None,
-    panda_pub=None,
+    cmd_pub=None,
     ros_node=None,
-    print_every_n: int = 1,   # set to 10 to reduce spam
+    print_every_n: int = 10,
+    ur5_0: Optional[List[float]] = None,
+    drive_follower: bool = False,   # set True if you want to also move the SO101 follower
 ):
-    logging.info("Starting teleop loop")
+    if cmd_pub is None:
+        raise RuntimeError("cmd_pub is None")
+    if ros_node is None:
+        raise RuntimeError("ros_node is None")
+    if ur5_0 is None or len(ur5_0) != 6:
+        raise RuntimeError("ur5_0 must be a 6-element list captured from /joint_states")
+
+    logging.info("Starting teleop loop (UR5 delta teleop)")
     period = 1.0 / float(fps)
     start_time = time.time()
     step = 0
 
-    while True:
+    leader0: Optional[Dict[str, float]] = None
+
+    while rclpy.ok():
         loop_start = time.time()
 
         if duration is not None and (loop_start - start_time) > duration:
@@ -110,61 +196,79 @@ def teleop_loop(
             time.sleep(0.001)
             continue
 
-        # 2) follower observation (or robot observation)
-        obs = robot.get_observation()
-        obs = robot_observation_processor(obs)
+        # IMPORTANT:
+        # For UR5 teleop, we do NOT need follower observation.
+        # We also don't want crashes from bus sync_read failures.
+        obs = None
 
-        # 3) process -> action for robot
-        robot_action_to_send = robot_action_processor((teleop_action, obs))
+        # 2) process -> action dict (LeRobot processors expect a tuple; obs can be None)
+        try:
+            robot_action_to_send = robot_action_processor((teleop_action, obs))
+        except Exception as e:
+            logging.warning("robot_action_processor failed: %s", e)
+            time.sleep(0.001)
+            continue
 
-        # 4) map -> panda
-        panda_joint_cmd = extract_panda_joint_vector(robot_action_to_send)
+        if not isinstance(robot_action_to_send, dict):
+            logging.warning("robot_action_to_send is not a dict: %s", type(robot_action_to_send))
+            time.sleep(0.001)
+            continue
+
+        # 3) leader pose extraction
+        leader_now = get_leader_vec_deg(robot_action_to_send)
+
+        # Capture leader0 on first valid frame (zeroing)
+        if leader0 is None:
+            leader0 = leader_now
+            logging.info("Captured leader0 (zero reference). No UR5 command sent this frame.")
+            step += 1
+            continue
+
+        # 4) compute UR5 command (delta-based)
+        ur5_cmd = compute_ur5_cmd_from_deltas(leader_now, leader0, ur5_0)
+
+        # 5) publish to ros2_control
+        msg = Float64MultiArray()
+        msg.data = ur5_cmd
+        cmd_pub.publish(msg)
 
         # Debug prints
         if (step % max(1, print_every_n)) == 0:
             print("\n================ ROBOT ACTION TO SEND ================")
-            if isinstance(robot_action_to_send, dict):
-                for k, v in robot_action_to_send.items():
-                    try:
-                        vv = float(v)
-                        print(f"{k:<20} : {vv: .4f}")
-                    except Exception:
-                        print(f"{k:<20} : {v}")
-            else:
-                print("robot_action_to_send is not a dict:", type(robot_action_to_send))
+            for k, v in robot_action_to_send.items():
+                try:
+                    print(f"{k:<20} : {float(v): .4f}")
+                except Exception:
+                    print(f"{k:<20} : {v}")
 
             print("------------------------------------------------------")
-            print("PANDA_CMD:", [f"{q: .4f}" for q in panda_joint_cmd])
+            print("UR5_0  :", [f"{q: .4f}" for q in ur5_0])
+            print("UR5_CMD:", [f"{q: .4f}" for q in ur5_cmd])
             print("======================================================\n")
 
-        # 5) publish to ros2_control
-        if panda_pub is not None:
-            if len(panda_joint_cmd) != 7:
-                logging.error("Panda cmd wrong length: %d (expected 7)", len(panda_joint_cmd))
-            else:
-                msg = Float64MultiArray()
-                msg.data = panda_joint_cmd
-                panda_pub.publish(msg)
+        # keep ROS callbacks responsive
+        rclpy.spin_once(ros_node, timeout_sec=0.0)
 
-        # keep ROS callbacks responsive (if any)
-        if ros_node is not None:
-            rclpy.spin_once(ros_node, timeout_sec=0.0)
+        # OPTIONAL: drive the SO101 follower too, but never crash if it disconnects
+        if drive_follower:
+            try:
+                robot.send_action(robot_action_to_send)
+            except Exception as e:
+                logging.warning("Follower send_action failed (ignored): %s", e)
 
-        # 6) send to follower (keep this if you still want the so101 follower moving)
-        robot.send_action(robot_action_to_send)
+            if display_data and _HAS_RERUN:
+                try:
+                    log_rerun_data(
+                        teleop_action=teleop_action,
+                        robot_action=robot_action_to_send,
+                        robot_observation=None,
+                    )
+                except Exception:
+                    pass
 
-        # 7) optional rerun
-        if display_data and _HAS_RERUN:
-            log_rerun_data(
-                teleop_action=teleop_action,
-                robot_action=robot_action_to_send,
-                robot_observation=obs,
-            )
-
-        # 8) rate control
+        # rate control
         elapsed = time.time() - loop_start
-        sleep_time = max(0.0, period - elapsed)
-        time.sleep(sleep_time)
+        time.sleep(max(0.0, period - elapsed))
         step += 1
 
 
@@ -179,8 +283,8 @@ def teleoperate(cfg: TeleoperateConfig):
 
     # ROS init once
     rclpy.init()
-    ros_node = rclpy.create_node("panda_teleop_bridge")
-    panda_pub = ros_node.create_publisher(Float64MultiArray, "/arm_controller/commands", 10)
+    ros_node = rclpy.create_node("ur5_teleop_bridge")
+    cmd_pub = ros_node.create_publisher(Float64MultiArray, "/arm_controller/commands", 10)
     logging.info("ROS2 publisher created on /arm_controller/commands")
 
     # Rerun
@@ -196,9 +300,16 @@ def teleoperate(cfg: TeleoperateConfig):
 
     teleop_action_processor, robot_action_processor, robot_observation_processor = make_default_processors()
 
+    # Connect devices
     teleop.connect()
     robot.connect()
     logging.info("Teleop and robot connected")
+
+    # Capture UR5 start pose from /joint_states
+    js_reader = UR5JointStateReader(ros_node)
+    logging.info("Waiting for /joint_states to capture UR5 start pose...")
+    ur5_0 = js_reader.get_current(ros_node, UR5_JOINT_NAMES, timeout=5.0)
+    logging.info("Captured UR5 start pose: %s", [f"{q:.4f}" for q in ur5_0])
 
     try:
         teleop_loop(
@@ -210,36 +321,40 @@ def teleoperate(cfg: TeleoperateConfig):
             teleop_action_processor=teleop_action_processor,
             robot_action_processor=robot_action_processor,
             robot_observation_processor=robot_observation_processor,
-            panda_pub=panda_pub,
+            cmd_pub=cmd_pub,
             ros_node=ros_node,
-            print_every_n=1,  # change to 10 if spammy
+            print_every_n=10,
+            ur5_0=ur5_0,
+            drive_follower=False,   # set True only if you want follower motion
         )
     except KeyboardInterrupt:
         logging.info("Teleop interrupted by user")
     finally:
+        # Shutdown cleanly
         try:
             if cfg.display_data and _HAS_RERUN:
                 rr.rerun_shutdown()
         except Exception:
-            logging.exception("Error while shutting down rerun; ignoring during teleop shutdown.")
+            pass
 
         try:
             teleop.disconnect()
         except Exception:
-            logging.exception("Error while disconnecting teleop; ignoring during teleop shutdown.")
+            logging.exception("Error while disconnecting teleop; ignoring during shutdown.")
+
         try:
             robot.disconnect()
         except Exception:
-            logging.exception("Error while disconnecting robot; ignoring during teleop shutdown.")
+            logging.exception("Error while disconnecting robot; ignoring during shutdown.")
 
         ros_node.destroy_node()
         rclpy.shutdown()
         logging.info("Teleop shutdown complete")
+
 
 def main():
     teleoperate()
 
 
 if __name__ == "__main__":
-    # parser.wrap() means this reads CLI args in LeRobot style
     main()

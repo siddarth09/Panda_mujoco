@@ -1,6 +1,6 @@
 <mujoco model="ur5_scene">
 
-  <!-- Load the Panda arm (already includes wrist camera) -->
+ 
   <include file="ur5e.xml"/>
 
 
