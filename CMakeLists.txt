@@ -121,12 +121,28 @@ ament_target_dependencies(
   ament_index_cpp
 )
 
+add_executable(ur5_teleop
+  src/panda_teleop.cpp
+)
 
+ament_target_dependencies(
+  ur5_teleop
+  rclcpp
+  std_msgs
+  sensor_msgs
+  ament_index_cpp
+)
+
+target_link_libraries(
+  ur5_teleop
+  pinocchio::pinocchio
+)
 install(TARGETS panda_ik_node
   cube_detector
   cube_tf
   panda_teleop
   home_pos_ur5
+  ur5_teleop
   DESTINATION lib/${PROJECT_NAME}
 )
 

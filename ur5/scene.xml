@@ -1,7 +1,7 @@
 <mujoco model="ur5_scene">
 
  
-  <include file="ur5e.xml"/>
+  <include file="ur5_with_gripper.xml"/>
 
 
   <statistic center="0.3 0 0.4" extent="1"/>
@@ -33,7 +33,7 @@
     <geom name="ground" type="plane" size="0 0 0.05" material="groundplane"/>
 
     <!-- === Table beside the robot === -->
-    <body name="table" pos="0.6 0 0.38">
+    <body name="table" pos="0.6 0 0.28">
       <geom name="table_top" type="box" size="0.4 0.4 0.02"
             rgba="0.85 0.85 0.85 1" contype="1" conaffinity="1"/>
 
